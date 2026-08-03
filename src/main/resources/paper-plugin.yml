@@ -1,5 +1,5 @@
 name: TurfWarsCompanion
-version: 1.0.0
+version: 1.0.0-SNAPSHOT
 main: com.ronlab.turfwars.TurfWarsCompanion
 api-version: "26.2"
 dependencies:
@@ -7,3 +7,8 @@ dependencies:
     RonlabGameAssistant:
       load: BEFORE
       required: true
+commands:
+  turfwars:
+    description: TurfWars developer QA test command
+    permission: turfwars.admin
+    aliases: [tw]

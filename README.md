@@ -1,63 +1,37 @@
-# Minecraft Turf Wars 👾
-https://minecraft-turf-wars.netlify.app
+# rga-turfwars 👾
 
-![Java](https://img.shields.io/badge/Language-Java-orange.svg)
-![Build Tool](https://img.shields.io/badge/Build-Gradle-blue.svg)
+![Language](https://img.shields.io/badge/Language-Java_25-orange.svg)
+![Platform](https://img.shields.io/badge/Platform-Paper_26.2-blue.svg)
+![Framework](https://img.shields.io/badge/Framework-RGA_CPMK-purple.svg)
 
-A custom Minecraft plugin designed for the KSU Minecraft Esports server to enable a "Turf Wars" team battle minigame.
+`rga-turfwars` is an official companion minigame plugin for the **Ronlab Game Assistant (RGA)** ecosystem.
 
-## 📖 About the Project
+## 📖 About the Minigame
 
-Turf Wars is a fast paced, team based, player versus player experience that combines elements of a traditional “tug-of-war” game with Minecraft’s building and combat mechanics. Gold Team and Black Team face off in an arena where the ground they stand on represents their score in the game. The objective is simple: expand your team’s territory by eliminating enemy opponents.
+Turf Wars is a fast-paced, team-based tug-of-war battle. Two teams (**Black Team** vs **Gold Team**) compete in an arena where the ground represents their team score. 
 
-Kennesaw State University Esports needed a fresh and engaging Minecraft gamemode for campus events. This game will satisfy all of these requirements helping drive more players to the KSU Minecraft server. This gamemode was purposefully designed with simplicity in mind so experienced players and new players will be able to enjoy the game together. 
+- **One-Shot Bow Combat**: Every bow hit results in an instant kill and advances your team's territory line.
+- **Dynamic Turf Advancement**: Eliminating opponents shifts the territory line forward ($Z$-axis boundaries).
+- **RGA Integration**: Procedural world loading, party management, JIT spectator routing, and victory teardowns are handled entirely by RGA (`com.ronlab:rga-api`).
 
-## ✨ Features
+## 🛠️ Tech Stack & Requirements
 
-* **Team-Based Gameplay:** Players are grouped into opposing teams (Gold Team and Black Team) to battle for arena dominance.
-* **Territory Control:** Dynamic mapping and claiming of "turf" within the playing field. Whenever one team controls the entire arena the game ends.
-* **Lobby System:** Includes a pre-game staging area (`/lobby`) for queuing players before the match begins.
-* **Custom Arena World:** Comes with a `template_world` that is the default arena for the minigame.
-* **Web Integration:** Includes a `website` directory containing HTML/CSS assets, used for displaying project information
+- **Java**: 25
+- **Server Platform**: PaperMC 26.2 (`paper-plugin.yml`)
+- **Build Tool**: Apache Maven (`pom.xml`)
+- **Framework API**: `com.ronlab:rga-api:1.13.0-SNAPSHOT`
 
-## 🛠️ Tech Stack
+## ⚙️ Compilation & Deployment
 
-* **Plugin Development:** Java (Spigot/Paper API)
-* **Build Tool:** Gradle
-* **Web Assets:** HTML (27%), CSS (4%)
-
-## 📂 Project Structure
-
-```text
-Minecraft-Turf-Wars/
-├── src/main/          # Java source code and resources for the Minecraft plugin
-├── lobby/             # The pre-game lobby world file
-├── template_world/    # The arena used for the Turf Wars minigame world file
-├── website/           # Web files (HTML/CSS) for the projects's accompanying page
-├── build.gradle       # Gradle build configuration and dependencies
-└── gradlew            # Gradle wrapper executable
+### 1. Build via Maven:
+```bash
+mvn clean package
 ```
-## 🚀 Getting Started
-### Prerequisites
-1. Java Development Kit (JDK) (Match the version to your target Minecraft server version, usually Java 17 or 21)
-2. A Minecraft Server running Spigot or Paper
-3. Git
-## ⚙️ Installation & Build Instructions
-### 1. Clone the repository:
-```
-git clone [https://github.com/minecraft-turf-wars/Minecraft-Turf-Wars.git](https://github.com/minecraft-turf-wars/Minecraft-Turf-Wars.git)
-cd Minecraft-Turf-Wars
-```
-### 2. Build the plugin using the Gradle Wrapper:
-```
-./gradlew build
-```
-### 3. Deploy to your Minecraft server:
-* After a successful build, locate the compiled .jar file in the build/libs/ directory.
-* Copy the .jar file into your server's plugins/ folder.
-* Restart or reload your server.
+The compiled jar will be generated at `target/rga-turfwars-1.0.0-SNAPSHOT.jar`.
 
-### 4. World Setup:
-Move the template_world and lobby folders into your server's root directory.
-⠀⠀
-### 5. Have Fun!⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+### 2. Deployment:
+Deploy `rga-turfwars-1.0.0-SNAPSHOT.jar` to your Paper server's `plugins/` directory alongside `RonlabGameAssistant.jar`.
+
+## 🛠️ Developer Test Command
+- `/turfwars forcewin`: Requires `turfwars.admin` permission or OP. Triggers programmatic session conclusion for single-developer QA testing.
+

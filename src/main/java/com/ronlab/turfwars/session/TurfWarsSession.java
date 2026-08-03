@@ -45,6 +45,7 @@ public class TurfWarsSession {
     private final Map<UUID, Location> deathLocations = new HashMap<>();
     private final Set<UUID> spawnProtectedPlayers = new HashSet<>();
 
+    private final Set<BukkitTask> activeTasks = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private Scoreboard scoreboard;
     private Objective objective;
     private BukkitTask mechanicsTask;
@@ -112,6 +113,7 @@ public class TurfWarsSession {
                 }
             }
         }, 0L, 100L);
+        activeTasks.add(mechanicsTask);
     }
 
     public void updateScoreboard() {
@@ -170,7 +172,7 @@ public class TurfWarsSession {
         RgaBridge.setSpectator(victim, true);
 
         // 5-second spectator delay before respawn
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        BukkitTask respawnTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (concluded || !victim.isOnline()) return;
 
             RgaBridge.setSpectator(victim, false);
@@ -195,56 +197,68 @@ public class TurfWarsSession {
             victim.sendMessage("§bYou have spawn protection for 3 seconds!");
 
             // 3-second spawn invincibility
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            BukkitTask protectionTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (spawnProtectedPlayers.remove(victim.getUniqueId())) {
                     if (victim.isOnline()) {
                         victim.sendMessage("§cYour spawn protection has worn off!");
                     }
                 }
             }, 60L);
+            activeTasks.add(protectionTask);
 
         }, 100L); // 5-second spectator timer
+        activeTasks.add(respawnTask);
     }
 
     public void updateTerritoryBlocks() {
         if (world == null) return;
 
-        int MAX_Y = FLOOR_Y + 20;
+        // 1. Update floor concrete blocks across X: [-43..-1] and Z: [7..70] at Y = FLOOR_Y
         for (int x = MIN_X; x <= MAX_X; x++) {
             for (int z = MIN_Z; z <= MAX_Z; z++) {
                 boolean isBlackTerritory = (z < divideLine);
-                Location floorLoc = new Location(world, x, FLOOR_Y, z);
-
-                if (isBlackTerritory) {
-                    floorLoc.getBlock().setType(Material.BLACK_CONCRETE);
-                } else {
-                    floorLoc.getBlock().setType(Material.YELLOW_CONCRETE);
+                org.bukkit.block.Block block = world.getBlockAt(x, FLOOR_Y, z);
+                Material targetFloor = isBlackTerritory ? Material.BLACK_CONCRETE : Material.YELLOW_CONCRETE;
+                if (block.getType() != targetFloor) {
+                    block.setType(targetFloor);
                 }
+            }
+        }
 
-                for (int y = FLOOR_Y + 1; y <= MAX_Y; y++) {
+        // 2. Clear invalid wool blocks in enemy territory (Y: FLOOR_Y + 1 to FLOOR_Y + 8)
+        int maxWoolY = FLOOR_Y + 8;
+        for (int x = MIN_X; x <= MAX_X; x++) {
+            for (int z = MIN_Z; z <= MAX_Z; z++) {
+                boolean isBlackTerritory = (z < divideLine);
+                for (int y = FLOOR_Y + 1; y <= maxWoolY; y++) {
                     org.bukkit.block.Block block = world.getBlockAt(x, y, z);
                     Material type = block.getType();
-
                     if (type == Material.AIR) continue;
 
-                    if (isBlackTerritory) {
-                        if (type == Material.YELLOW_WOOL) {
-                            block.setType(Material.AIR);
-                        }
-                    } else {
-                        if (type == Material.BLACK_WOOL) {
-                            block.setType(Material.AIR);
-                        }
+                    if (isBlackTerritory && type == Material.YELLOW_WOOL) {
+                        block.setType(Material.AIR);
+                    } else if (!isBlackTerritory && type == Material.BLACK_WOOL) {
+                        block.setType(Material.AIR);
                     }
                 }
             }
         }
     }
 
-    private void checkWinCondition() {
+    public void checkWinCondition() {
+        if (concluded) return;
+
         // CPMK Solo-Developer QA Guard
         if (initialPlayerCount == 1) {
             plugin.getLogger().info("[CPM] Single-player testing mode detected; suppressing automatic 0-opponent win condition.");
+            return;
+        }
+
+        if (blackTeam.isEmpty() && !goldTeam.isEmpty()) {
+            concludeGame("GOLD TEAM WINS (Opponents Disconnected)!", goldTeam);
+            return;
+        } else if (goldTeam.isEmpty() && !blackTeam.isEmpty()) {
+            concludeGame("BLACK TEAM WINS (Opponents Disconnected)!", blackTeam);
             return;
         }
 
@@ -253,6 +267,12 @@ public class TurfWarsSession {
         } else if (divideLine <= MIN_Z) {
             concludeGame("GOLD TEAM WINS!", goldTeam);
         }
+    }
+
+    public void forceWin(String reason) {
+        if (concluded) return;
+        List<UUID> winners = blackTeam.isEmpty() ? goldTeam : blackTeam;
+        concludeGame(reason, winners);
     }
 
     private void concludeGame(String winMessage, List<UUID> winningTeam) {
@@ -273,10 +293,23 @@ public class TurfWarsSession {
 
     public void cleanup() {
         concluded = true;
-        if (mechanicsTask != null) {
-            mechanicsTask.cancel();
-            mechanicsTask = null;
+        activeTasks.forEach(task -> {
+            if (task != null && !task.isCancelled()) {
+                task.cancel();
+            }
+        });
+        activeTasks.clear();
+        mechanicsTask = null;
+
+        if (scoreboard != null) {
+            for (UUID uuid : players) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) {
+                    p.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+                }
+            }
         }
+
         spawnProtectedPlayers.clear();
         deathLocations.clear();
     }

@@ -1,3 +1,7 @@
+# Maven
+target/
+*.jar
+
 # Gradle
 .gradle
 build/
@@ -23,3 +27,4 @@ out/
 /user_jvm_args.txt
 .vscode/
 reminders.txt
+

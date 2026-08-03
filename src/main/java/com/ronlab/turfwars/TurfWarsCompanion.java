@@ -1,5 +1,6 @@
 package com.ronlab.turfwars;
 
+import com.ronlab.turfwars.commands.TurfWarsTestCommand;
 import com.ronlab.turfwars.listeners.RgaEventListener;
 import com.ronlab.turfwars.listeners.TurfWarsGameListener;
 import org.bukkit.Bukkit;
@@ -14,15 +15,13 @@ public class TurfWarsCompanion extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
-        if (!Bukkit.getPluginManager().isPluginEnabled("RonlabGameAssistant")) {
-            getLogger().severe("[TurfWars] RonlabGameAssistant plugin is NOT enabled. Disabling TurfWarsCompanion.");
-            Bukkit.getPluginManager().disablePlugin(this);
-            return;
-        }
-
         this.rgaEventListener = new RgaEventListener(this);
         Bukkit.getPluginManager().registerEvents(rgaEventListener, this);
         Bukkit.getPluginManager().registerEvents(new TurfWarsGameListener(this), this);
+
+        if (getCommand("turfwars") != null) {
+            getCommand("turfwars").setExecutor(new TurfWarsTestCommand(this));
+        }
 
         getLogger().info("TurfWarsCompanion has been enabled cleanly as an RGA Companion Plugin!");
     }
@@ -33,6 +32,7 @@ public class TurfWarsCompanion extends JavaPlugin {
             rgaEventListener.getActiveSessions().values().forEach(session -> session.cleanup());
             rgaEventListener.getActiveSessions().clear();
         }
+        instance = null;
         getLogger().info("TurfWarsCompanion has been disabled.");
     }
 

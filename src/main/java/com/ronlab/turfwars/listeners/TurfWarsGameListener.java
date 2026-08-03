@@ -3,20 +3,27 @@ package com.ronlab.turfwars.listeners;
 import com.ronlab.turfwars.TurfWarsCompanion;
 import com.ronlab.turfwars.session.TurfWarsSession;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.util.Vector;
 
 public class TurfWarsGameListener implements Listener {
 
@@ -26,7 +33,7 @@ public class TurfWarsGameListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGH)
     public void onArrowHit(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) return;
         if (!(event.getDamager() instanceof Arrow arrow)) return;
@@ -35,8 +42,10 @@ public class TurfWarsGameListener implements Listener {
         TurfWarsSession session = plugin.getRgaEventListener().getSession(victim.getWorld().getName());
         if (session == null) return;
 
+        // Cancel vanilla damage event to bypass vanilla death screens & item drops
+        event.setCancelled(true);
+
         if (session.getSpawnProtectedPlayers().contains(victim.getUniqueId())) {
-            event.setCancelled(true);
             killer.sendMessage("§c" + victim.getName() + " currently has spawn protection!");
             killer.playSound(killer.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             arrow.remove();
@@ -47,17 +56,29 @@ public class TurfWarsGameListener implements Listener {
         boolean killerIsGold = session.getGoldTeam().contains(killer.getUniqueId());
 
         if (victimIsGold == killerIsGold) {
-            event.setCancelled(true);
             killer.sendMessage("§cYou cannot hurt your teammates!");
             arrow.remove();
             return;
         }
 
-        event.setDamage(1000.0);
         arrow.remove();
-
         session.handleKill(killer);
         session.handleDeathAndRespawn(victim);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onEntityDamage(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        if (event instanceof EntityDamageByEntityEvent) return; // Processed in onArrowHit
+
+        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
+        if (session == null) return;
+
+        event.setCancelled(true);
+
+        if (event.getCause() == EntityDamageEvent.DamageCause.VOID) {
+            session.handleDeathAndRespawn(player);
+        }
     }
 
     @EventHandler
@@ -99,16 +120,14 @@ public class TurfWarsGameListener implements Listener {
 
         if (session.getBlackTeam().contains(player.getUniqueId())) {
             if (newZ > divideLine) {
-                Location pushBack = event.getFrom().clone();
-                pushBack.setZ(pushBack.getZ() - 1.0);
-                event.setTo(pushBack);
+                event.setCancelled(true);
+                player.setVelocity(new Vector(0, 0.15, -0.4));
                 player.sendMessage("§cYou cannot enter gold team's territory!");
             }
         } else if (session.getGoldTeam().contains(player.getUniqueId())) {
             if (newZ < divideLine) {
-                Location pushBack = event.getFrom().clone();
-                pushBack.setZ(pushBack.getZ() + 1.0);
-                event.setTo(pushBack);
+                event.setCancelled(true);
+                player.setVelocity(new Vector(0, 0.15, 0.4));
                 player.sendMessage("§cYou cannot enter black team's territory!");
             }
         }
@@ -147,6 +166,52 @@ public class TurfWarsGameListener implements Listener {
     }
 
     @EventHandler
+    public void onItemDrop(PlayerDropItemEvent event) {
+        Player player = event.getPlayer();
+        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
+        if (session != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onItemPickup(EntityPickupItemEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
+        if (session != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onSwapHandItems(PlayerSwapHandItemsEvent event) {
+        Player player = event.getPlayer();
+        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
+        if (session != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
+        if (session != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onFoodLevelChange(FoodLevelChangeEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
+        if (session != null) {
+            event.setCancelled(true);
+            player.setFoodLevel(20);
+        }
+    }
+
+    @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
@@ -155,6 +220,7 @@ public class TurfWarsGameListener implements Listener {
             session.getPlayers().remove(player.getUniqueId());
             session.getBlackTeam().remove(player.getUniqueId());
             session.getGoldTeam().remove(player.getUniqueId());
+            session.checkWinCondition();
         }
     }
 }
