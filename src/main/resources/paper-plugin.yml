@@ -5,10 +5,5 @@ api-version: "26.2"
 dependencies:
   server:
     RonlabGameAssistant:
-      load: BEFORE
       required: true
-commands:
-  turfwars:
-    description: TurfWars developer QA test command
-    permission: turfwars.admin
-    aliases: [tw]
+      join-classpath: true

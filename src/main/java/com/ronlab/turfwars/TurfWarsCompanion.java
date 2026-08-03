@@ -3,8 +3,12 @@ package com.ronlab.turfwars;
 import com.ronlab.turfwars.commands.TurfWarsTestCommand;
 import com.ronlab.turfwars.listeners.RgaEventListener;
 import com.ronlab.turfwars.listeners.TurfWarsGameListener;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.List;
 
 public class TurfWarsCompanion extends JavaPlugin {
 
@@ -19,9 +23,15 @@ public class TurfWarsCompanion extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(rgaEventListener, this);
         Bukkit.getPluginManager().registerEvents(new TurfWarsGameListener(this), this);
 
-        if (getCommand("turfwars") != null) {
-            getCommand("turfwars").setExecutor(new TurfWarsTestCommand(this));
-        }
+        this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+            final Commands commands = event.registrar();
+            commands.register(
+                "turfwars",
+                "Turf Wars developer QA test command",
+                List.of("tw"),
+                new TurfWarsTestCommand(this)
+            );
+        });
 
         getLogger().info("TurfWarsCompanion has been enabled cleanly as an RGA Companion Plugin!");
     }
