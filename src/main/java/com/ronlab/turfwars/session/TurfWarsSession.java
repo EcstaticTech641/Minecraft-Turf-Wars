@@ -46,6 +46,8 @@ public class TurfWarsSession {
     private final Set<UUID> spawnProtectedPlayers = new HashSet<>();
 
     private final Set<BukkitTask> activeTasks = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final Set<UUID> teleporting = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private long sessionStartTimeMs;
     private Scoreboard scoreboard;
     private Objective objective;
     private BukkitTask mechanicsTask;
@@ -68,39 +70,37 @@ public class TurfWarsSession {
     }
 
     public void startSession() {
+        this.sessionStartTimeMs = System.currentTimeMillis();
         blackTeam.clear();
         goldTeam.clear();
 
-        Location blackSpawn = new Location(world, BLACK_X, BLACK_Y, BLACK_Z, 0f, 0f);
-        Location goldSpawn = new Location(world, GOLD_X, GOLD_Y, GOLD_Z, 180f, 0f);
-
         for (int i = 0; i < players.size(); i++) {
             UUID uuid = players.get(i);
-            Player p = Bukkit.getPlayer(uuid);
-            Material teamBlock = (i % 2 == 0) ? Material.BLACK_WOOL : Material.YELLOW_WOOL;
-
             if (i % 2 == 0) {
                 blackTeam.add(uuid);
-                if (p != null) p.teleport(blackSpawn);
             } else {
                 goldTeam.add(uuid);
-                if (p != null) p.teleport(goldSpawn);
-            }
-
-            if (p != null) {
-                p.setScoreboard(scoreboard);
-                InventoryManager.clearInventory(p);
-                InventoryManager.resetHealthAndHunger(p);
-                InventoryManager.giveCombatKit(p, teamBlock);
-
-                String teamName = blackTeam.contains(uuid) ? "§8BLACK" : "§6GOLD";
-                p.sendMessage("§fThe game has started! You are on the " + teamName + " §fteam.");
             }
         }
 
         this.divideLine = 38.5;
         updateTerritoryBlocks();
         updateScoreboard();
+
+        // Enforce team spawns & give kits at 10L (0.5s)
+        BukkitTask initTask10 = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (concluded) return;
+            teleportAllToSpawns();
+            equipAllCombatKits();
+        }, 10L);
+        activeTasks.add(initTask10);
+
+        // Re-enforce team spawns at 20L (1.0s) - kit distribution is idempotent and won't duplicate items
+        BukkitTask initTask20 = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (concluded) return;
+            teleportAllToSpawns();
+        }, 20L);
+        activeTasks.add(initTask20);
 
         // Start replenishing items task every 5 seconds (100 ticks)
         this.mechanicsTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -114,6 +114,67 @@ public class TurfWarsSession {
             }
         }, 0L, 100L);
         activeTasks.add(mechanicsTask);
+    }
+
+    public void teleportPlayerToSpawn(Player p) {
+        if (concluded || p == null || !p.isOnline()) return;
+
+        Location blackSpawn = new Location(world, BLACK_X, BLACK_Y, BLACK_Z, 0f, 0f);
+        Location goldSpawn = new Location(world, GOLD_X, GOLD_Y, GOLD_Z, 180f, 0f);
+
+        boolean isBlack = blackTeam.contains(p.getUniqueId());
+        Location spawn = isBlack ? blackSpawn : goldSpawn;
+
+        teleporting.add(p.getUniqueId());
+        try {
+            p.teleport(spawn);
+            p.setScoreboard(scoreboard);
+        } finally {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> teleporting.remove(p.getUniqueId()), 1L);
+        }
+    }
+
+    public void teleportAllToSpawns() {
+        if (concluded) return;
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                teleportPlayerToSpawn(p);
+            }
+        }
+    }
+
+    public void equipCombatKit(Player p) {
+        if (concluded || p == null || !p.isOnline()) return;
+
+        // Idempotency check: skip item distribution if player already has team wool kit
+        if (p.getInventory().contains(Material.BLACK_WOOL) || p.getInventory().contains(Material.YELLOW_WOOL)) {
+            return;
+        }
+
+        boolean isBlack = blackTeam.contains(p.getUniqueId());
+        Material teamBlock = isBlack ? Material.BLACK_WOOL : Material.YELLOW_WOOL;
+
+        InventoryManager.clearInventory(p);
+        InventoryManager.resetHealthAndHunger(p);
+        InventoryManager.giveCombatKit(p, teamBlock);
+
+        String teamName = isBlack ? "§8BLACK" : "§6GOLD";
+        p.sendMessage("§fThe game has started! You are on the " + teamName + " §fteam.");
+    }
+
+    public void equipAllCombatKits() {
+        if (concluded) return;
+        for (UUID uuid : players) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                equipCombatKit(p);
+            }
+        }
+    }
+
+    public boolean isTeleporting(UUID playerUuid) {
+        return teleporting.contains(playerUuid);
     }
 
     public void updateScoreboard() {
@@ -322,4 +383,5 @@ public class TurfWarsSession {
     public List<UUID> getPlayers() { return players; }
     public Set<UUID> getSpawnProtectedPlayers() { return spawnProtectedPlayers; }
     public int getInitialPlayerCount() { return initialPlayerCount; }
+    public long getSessionStartTimeMs() { return sessionStartTimeMs; }
 }

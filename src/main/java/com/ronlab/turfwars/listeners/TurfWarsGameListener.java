@@ -23,14 +23,49 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.util.Vector;
 
 public class TurfWarsGameListener implements Listener {
 
     private final TurfWarsCompanion plugin;
+    private final java.util.Set<java.util.UUID> bypassGuard = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public TurfWarsGameListener(TurfWarsCompanion plugin) {
         this.plugin = plugin;
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerTeleport(PlayerTeleportEvent event) {
+        Player player = event.getPlayer();
+        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
+        if (session == null) return;
+
+        // Ignore teleports initiated by TurfWarsSession or listener bypass guard
+        if (session.isTeleporting(player.getUniqueId()) || bypassGuard.contains(player.getUniqueId())) {
+            return;
+        }
+
+        long elapsedMs = System.currentTimeMillis() - session.getSessionStartTimeMs();
+        if (elapsedMs <= 3000) {
+            org.bukkit.Location to = event.getTo();
+            if (to == null) return;
+
+            double x = to.getX();
+            double z = to.getZ();
+
+            if (x < -43.0 || x > -1.0 || z < 7.0 || z > 70.0) {
+                plugin.getLogger().warning("[TurfWars] Intercepted external overwrite teleport for " + player.getName());
+                event.setCancelled(true);
+
+                bypassGuard.add(player.getUniqueId());
+                try {
+                    session.teleportPlayerToSpawn(player);
+                } finally {
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> bypassGuard.remove(player.getUniqueId()), 1L);
+                }
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
