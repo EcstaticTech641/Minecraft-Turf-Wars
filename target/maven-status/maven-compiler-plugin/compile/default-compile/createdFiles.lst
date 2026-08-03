@@ -1,0 +1,6 @@
+com\ronlab\turfwars\TurfWarsCompanion.class
+com\ronlab\turfwars\session\InventoryManager.class
+com\ronlab\turfwars\util\RgaBridge.class
+com\ronlab\turfwars\listeners\TurfWarsGameListener.class
+com\ronlab\turfwars\session\TurfWarsSession.class
+com\ronlab\turfwars\listeners\RgaEventListener.class

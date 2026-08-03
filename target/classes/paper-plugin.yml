@@ -1,0 +1,9 @@
+name: TurfWarsCompanion
+version: 1.0.0
+main: com.ronlab.turfwars.TurfWarsCompanion
+api-version: "26.2"
+dependencies:
+  server:
+    RonlabGameAssistant:
+      load: BEFORE
+      required: true
