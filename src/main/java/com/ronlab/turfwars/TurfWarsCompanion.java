@@ -2,6 +2,7 @@ package com.ronlab.turfwars;
 
 import com.ronlab.turfwars.commands.TurfWarsTestCommand;
 import com.ronlab.turfwars.listeners.RgaEventListener;
+import com.ronlab.turfwars.listeners.TurfWarsBlockListener;
 import com.ronlab.turfwars.listeners.TurfWarsDeathListener;
 import com.ronlab.turfwars.listeners.TurfWarsGameListener;
 import io.papermc.paper.command.brigadier.Commands;
@@ -23,6 +24,7 @@ public class TurfWarsCompanion extends JavaPlugin {
         this.rgaEventListener = new RgaEventListener(this);
         Bukkit.getPluginManager().registerEvents(rgaEventListener, this);
         Bukkit.getPluginManager().registerEvents(new TurfWarsGameListener(this), this);
+        Bukkit.getPluginManager().registerEvents(new TurfWarsBlockListener(this), this);
         Bukkit.getPluginManager().registerEvents(new TurfWarsDeathListener(this), this);
 
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {

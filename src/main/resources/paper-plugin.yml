@@ -1,7 +1,7 @@
 name: TurfWarsCompanion
 version: 1.0.0-SNAPSHOT
 main: com.ronlab.turfwars.TurfWarsCompanion
-api-version: "26.2"
+api-version: '26.2'
 dependencies:
   server:
     RonlabGameAssistant:

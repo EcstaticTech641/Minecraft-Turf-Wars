@@ -4,15 +4,12 @@ import com.ronlab.turfwars.TurfWarsCompanion;
 import com.ronlab.turfwars.session.TurfWarsSession;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
@@ -68,73 +65,80 @@ public class TurfWarsGameListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onArrowHit(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Player victim)) return;
-        if (!(event.getDamager() instanceof Arrow arrow)) return;
-        if (!(arrow.getShooter() instanceof Player killer)) return;
-
-        TurfWarsSession session = plugin.getRgaEventListener().getSession(victim.getWorld().getName());
-        if (session == null) return;
-
-        // Cancel vanilla damage event to bypass vanilla death screens & item drops
-        event.setCancelled(true);
-
-        if (session.getSpawnProtectedPlayers().contains(victim.getUniqueId())) {
-            killer.sendMessage("§c" + victim.getName() + " currently has spawn protection!");
-            killer.playSound(killer.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-            arrow.remove();
-            return;
-        }
-
-        boolean victimIsGold = session.getGoldTeam().contains(victim.getUniqueId());
-        boolean killerIsGold = session.getGoldTeam().contains(killer.getUniqueId());
-
-        if (victimIsGold == killerIsGold) {
-            killer.sendMessage("§cYou cannot hurt your teammates!");
-            arrow.remove();
-            return;
-        }
-
-        arrow.remove();
-        session.handleKill(killer);
-        session.handleDeathAndRespawn(victim);
-    }
-
+    /*
+     * PROJECT MANAGEMENT NOTE: August 4, 2026.
+     * Environmental damage (fall, fire, drowning) is intentionally cancelled.
+     * The core gameplay loop uses arrows, wool, borders, and kits.
+     * This decision restricts future map designs to arrow-only lethal damage.
+     * Accepted by Project Management.
+     */
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-        if (event instanceof EntityDamageByEntityEvent) return; // Processed in onArrowHit
+        // Arrow damage (EntityDamageByEntityEvent) passes through untouched — vanilla
+        // processes it, reduces HP to zero, and fires PlayerDeathEvent, which is
+        // handled by TurfWarsDeathListener.onPlayerDeath.
+        if (event instanceof EntityDamageByEntityEvent) return;
 
         TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
         if (session == null) return;
-
-        event.setCancelled(true);
 
         if (event.getCause() == EntityDamageEvent.DamageCause.VOID) {
-            session.handleDeathAndRespawn(player);
+            // Void damage passes through naturally — vanilla zeroes the player's HP,
+            // firing PlayerDeathEvent. TurfWarsDeathListener handles the respawn routing.
+            // No kill credit is awarded (killer is null for environmental deaths).
+            return;
         }
+
+        // Cancel all other environmental damage (fall, fire, drowning, suffocation).
+        // Only arrows are lethal in Turf Wars. See PM note above.
+        event.setCancelled(true);
     }
 
-    @EventHandler
-    public void onBlockPlace(BlockPlaceEvent event) {
-        Player player = event.getPlayer();
-        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
+    /**
+     * Enforces spawn protection and prevents friendly fire for arrow damage.
+     *
+     * <p>Priority HIGH: runs before the HIGHEST environmental-damage handler above so
+     * arrow events are intercepted here and never reach general cancellation logic.
+     * The strict early-return chain prevents NPE / ClassCastException on non-player
+     * projectiles (e.g. Skeletons, dispensers) that also fire EntityDamageByEntityEvent.
+     *
+     * <p>Two guards are applied in this order:
+     * <ol>
+     *   <li>Spawn protection — cancels damage and notifies attacker when the victim is
+     *       still inside their post-respawn protection window.</li>
+     *   <li>Friendly fire — cancels damage and notifies attacker when both players
+     *       share the same team.</li>
+     * </ol>
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
+        // Guard 1: victim must be a Player
+        if (!(event.getEntity() instanceof Player victim)) return;
+
+        // Guard 2: damager must be an Arrow
+        if (!(event.getDamager() instanceof Arrow arrow)) return;
+
+        // Guard 3: shooter must be a Player (rules out skeletons, dispensers, etc.)
+        if (!(arrow.getShooter() instanceof Player attacker)) return;
+
+        // Guard 4: an active Turf Wars session must exist in the victim's world
+        TurfWarsSession session = plugin.getRgaEventListener().getSession(victim.getWorld().getName());
         if (session == null) return;
 
-        double blockZ = event.getBlock().getLocation().getZ();
-        double divideLine = session.getDivideLine();
+        // Spawn protection check — takes priority over team check
+        if (session.getSpawnProtectedPlayers().contains(victim.getUniqueId())) {
+            event.setCancelled(true);
+            attacker.sendMessage("§cTarget has spawn protection!");
+            return;
+        }
 
-        if (session.getBlackTeam().contains(player.getUniqueId())) {
-            if (blockZ > divideLine) {
-                event.setCancelled(true);
-                player.sendMessage("§cYou cannot build in enemy territory!");
-            }
-        } else if (session.getGoldTeam().contains(player.getUniqueId())) {
-            if (blockZ < divideLine) {
-                event.setCancelled(true);
-                player.sendMessage("§cYou cannot build in enemy territory!");
-            }
+        // Friendly fire check — cancel damage between teammates
+        String attackerTeam = session.getTeam(attacker);
+        String victimTeam   = session.getTeam(victim);
+        if (attackerTeam.equals(victimTeam)) {
+            event.setCancelled(true);
+            attacker.sendMessage("§cYou cannot damage your teammates!");
         }
     }
 
@@ -188,15 +192,6 @@ public class TurfWarsGameListener implements Listener {
                     arrow.remove();
                 }
             }, 1L);
-        }
-    }
-
-    @EventHandler
-    public void onBlockBreak(BlockBreakEvent event) {
-        Player player = event.getPlayer();
-        TurfWarsSession session = plugin.getRgaEventListener().getSession(player.getWorld().getName());
-        if (session != null) {
-            event.setCancelled(true);
         }
     }
 

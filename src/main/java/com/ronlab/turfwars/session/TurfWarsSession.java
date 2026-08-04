@@ -3,7 +3,6 @@ package com.ronlab.turfwars.session;
 import com.ronlab.turfwars.TurfWarsCompanion;
 import com.ronlab.turfwars.util.RgaBridge;
 import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -34,8 +33,8 @@ public class TurfWarsSession {
     private static final int FLOOR_Y = -61;
     private static final int MIN_X = -43;
     private static final int MAX_X = -1;
-    private static final int MIN_Z = 7;
-    private static final int MAX_Z = 70;
+    public static final int MIN_Z = 7;
+    public static final int MAX_Z = 70;
 
     public static final double BLACK_X = -21, BLACK_Y = -59, BLACK_Z = 0;
     public static final double GOLD_X = -21, GOLD_Y = -59, GOLD_Z = 77;
@@ -43,16 +42,17 @@ public class TurfWarsSession {
     private final List<UUID> blackTeam = new CopyOnWriteArrayList<>();
     private final List<UUID> goldTeam = new CopyOnWriteArrayList<>();
 
-    private final Map<UUID, Location> deathLocations = new HashMap<>();
     private final Set<UUID> spawnProtectedPlayers = new HashSet<>();
 
     private final Set<BukkitTask> activeTasks = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final Set<UUID> teleporting = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private long sessionStartTimeMs;
-    private Scoreboard scoreboard;
-    private Objective objective;
+    private com.ronlab.turfwars.ui.TurfWarsScoreboard turfWarsScoreboard;
     private BukkitTask mechanicsTask;
     private boolean concluded = false;
+
+    private int blackKills = 0;
+    private int goldKills = 0;
 
     public TurfWarsSession(TurfWarsCompanion plugin, World world, List<UUID> playerUuids) {
         this.plugin = plugin;
@@ -63,11 +63,7 @@ public class TurfWarsSession {
     }
 
     private void setupScoreboard() {
-        if (Bukkit.getScoreboardManager() != null) {
-            this.scoreboard = Bukkit.getScoreboardManager().getNewScoreboard();
-            this.objective = scoreboard.registerNewObjective("turfwars", "dummy", "§b§lTURF WARS");
-            this.objective.setDisplaySlot(DisplaySlot.SIDEBAR);
-        }
+        this.turfWarsScoreboard = new com.ronlab.turfwars.ui.TurfWarsScoreboard();
     }
 
     public void startSession() {
@@ -115,6 +111,13 @@ public class TurfWarsSession {
             }
         }, 0L, 100L);
         activeTasks.add(mechanicsTask);
+
+        // Start scoreboard update task every 1 second (20 ticks)
+        BukkitTask scoreboardTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (concluded) return;
+            updateScoreboard();
+        }, 0L, 20L);
+        activeTasks.add(scoreboardTask);
     }
 
     public void teleportPlayerToSpawn(Player p) {
@@ -129,7 +132,9 @@ public class TurfWarsSession {
         teleporting.add(p.getUniqueId());
         try {
             p.teleport(spawn);
-            p.setScoreboard(scoreboard);
+            if (turfWarsScoreboard != null) {
+                turfWarsScoreboard.applyTo(p);
+            }
         } finally {
             Bukkit.getScheduler().runTaskLater(plugin, () -> teleporting.remove(p.getUniqueId()), 1L);
         }
@@ -179,25 +184,9 @@ public class TurfWarsSession {
     }
 
     public void updateScoreboard() {
-        if (scoreboard == null || objective == null) return;
-
-        for (String entry : scoreboard.getEntries()) {
-            scoreboard.resetScores(entry);
+        if (turfWarsScoreboard != null) {
+            turfWarsScoreboard.update(this);
         }
-
-        double totalLength = MAX_Z - MIN_Z;
-        double blackControl = divideLine - MIN_Z;
-
-        int blackPercent = (int) Math.max(0, Math.min(100, (blackControl / totalLength) * 100));
-        int goldPercent = 100 - blackPercent;
-
-        objective.getScore(" ").setScore(6);
-        objective.getScore("§fMap Control:").setScore(5);
-        objective.getScore("§8Black: §7" + blackPercent + "%").setScore(4);
-        objective.getScore("§6Gold: §e" + goldPercent + "%").setScore(3);
-        objective.getScore("  ").setScore(2);
-        objective.getScore("§fPlayers: §a" + players.size()).setScore(1);
-        objective.getScore(" ").setScore(0);
     }
 
     public void handleKill(Player killer) {
@@ -215,54 +204,16 @@ public class TurfWarsSession {
         }
 
         if (blackTeam.contains(killer.getUniqueId())) {
+            blackKills++;
             divideLine += moveStep;
         } else {
+            goldKills++;
             divideLine -= moveStep;
         }
 
         updateTerritoryBlocks();
         updateScoreboard();
         checkWinCondition();
-    }
-
-    public void handleDeathAndRespawn(Player victim) {
-        if (concluded || victim == null || !victim.isOnline()) return;
-
-        deathLocations.put(victim.getUniqueId(), victim.getLocation());
-
-        // Use local spectator mode (do NOT invoke RGA setSpectator API to avoid Hub teleportation)
-        victim.setGameMode(GameMode.SPECTATOR);
-
-        // 5-second spectator delay before respawn
-        BukkitTask respawnTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (concluded || !victim.isOnline()) return;
-
-            victim.setGameMode(GameMode.SURVIVAL);
-            teleportPlayerToSpawn(victim);
-
-            boolean isBlack = blackTeam.contains(victim.getUniqueId());
-            Material teamBlock = isBlack ? Material.BLACK_WOOL : Material.YELLOW_WOOL;
-
-            InventoryManager.clearInventory(victim);
-            InventoryManager.resetHealthAndHunger(victim);
-            InventoryManager.giveCombatKit(victim, teamBlock);
-            victim.sendMessage("§aYou have respawned!");
-
-            spawnProtectedPlayers.add(victim.getUniqueId());
-            victim.sendMessage("§bYou have spawn protection for 3 seconds!");
-
-            // 3-second spawn invincibility
-            BukkitTask protectionTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (spawnProtectedPlayers.remove(victim.getUniqueId())) {
-                    if (victim.isOnline()) {
-                        victim.sendMessage("§cYour spawn protection has worn off!");
-                    }
-                }
-            }, 60L);
-            activeTasks.add(protectionTask);
-
-        }, 100L); // 5-second spectator timer
-        activeTasks.add(respawnTask);
     }
 
     public void updateTerritoryBlocks() {
@@ -356,7 +307,7 @@ public class TurfWarsSession {
         activeTasks.clear();
         mechanicsTask = null;
 
-        if (scoreboard != null) {
+        if (turfWarsScoreboard != null && Bukkit.getScoreboardManager() != null) {
             for (UUID uuid : players) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null && p.isOnline()) {
@@ -366,7 +317,6 @@ public class TurfWarsSession {
         }
 
         spawnProtectedPlayers.clear();
-        deathLocations.clear();
     }
 
     // Getters & Query Methods
@@ -378,4 +328,22 @@ public class TurfWarsSession {
     public Set<UUID> getSpawnProtectedPlayers() { return spawnProtectedPlayers; }
     public int getInitialPlayerCount() { return initialPlayerCount; }
     public long getSessionStartTimeMs() { return sessionStartTimeMs; }
+    public int getBlackKills() { return blackKills; }
+    public int getGoldKills() { return goldKills; }
+    public com.ronlab.turfwars.ui.TurfWarsScoreboard getTurfWarsScoreboard() { return turfWarsScoreboard; }
+
+    /**
+     * Returns the team identifier for the given player.
+     *
+     * @param player the player to query
+     * @return {@code "black"} if the player is on the black team,
+     *         {@code "gold"} if the player is on the gold team,
+     *         or {@code "none"} if the player is not registered in either team
+     */
+    public String getTeam(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (blackTeam.contains(uuid)) return "black";
+        if (goldTeam.contains(uuid)) return "gold";
+        return "none";
+    }
 }
