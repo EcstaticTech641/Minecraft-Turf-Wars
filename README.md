@@ -29,9 +29,20 @@ mvn clean package
 ```
 The compiled jar will be generated at `target/rga-turfwars-1.0.0-SNAPSHOT.jar`.
 
-### 2. Deployment:
-Deploy `rga-turfwars-1.0.0-SNAPSHOT.jar` to your Paper server's `plugins/` directory alongside `RonlabGameAssistant.jar`.
+### 2. Deployment & Setup:
+1. Deploy `rga-turfwars-1.0.0-SNAPSHOT.jar` to your Paper server's `plugins/` directory alongside `RonlabGameAssistant.jar`.
+2. Copy the template world directory `template_world/` (or `minigame_turfwars`) to `plugins/RonlabGameAssistant/templates/minigame_turfwars/`.
+3. Register the minigame in `plugins/RonlabGameAssistant/config.yml` under `minigames:`:
+   ```yaml
+   minigames:
+     turfwars:
+       display-name: "Turf Wars"
+       min-players: 2
+       max-players: 16
+       template-world: "minigame_turfwars"
+       allow-spectators: true
+   ```
 
 ## 🛠️ Developer Test Command
-- `/turfwars forcewin`: Requires `turfwars.admin` permission or OP. Triggers programmatic session conclusion for single-developer QA testing.
+- `/turfwars forcewin`: Requires `turfwars.admin` permission or OP. Triggers programmatic session conclusion for single-developer QA testing (supports 1-player QA testing mode).
 

@@ -3,6 +3,7 @@ package com.ronlab.turfwars.session;
 import com.ronlab.turfwars.TurfWarsCompanion;
 import com.ronlab.turfwars.util.RgaBridge;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -225,31 +226,24 @@ public class TurfWarsSession {
     }
 
     public void handleDeathAndRespawn(Player victim) {
-        if (concluded) return;
+        if (concluded || victim == null || !victim.isOnline()) return;
 
         deathLocations.put(victim.getUniqueId(), victim.getLocation());
 
-        // Delegate spectator state to RGA Session Control
-        RgaBridge.setSpectator(victim, true);
+        // Use local spectator mode (do NOT invoke RGA setSpectator API to avoid Hub teleportation)
+        victim.setGameMode(GameMode.SPECTATOR);
 
         // 5-second spectator delay before respawn
         BukkitTask respawnTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (concluded || !victim.isOnline()) return;
 
-            RgaBridge.setSpectator(victim, false);
+            victim.setGameMode(GameMode.SURVIVAL);
+            teleportPlayerToSpawn(victim);
 
-            Location respawnLoc;
-            Material teamBlock;
+            boolean isBlack = blackTeam.contains(victim.getUniqueId());
+            Material teamBlock = isBlack ? Material.BLACK_WOOL : Material.YELLOW_WOOL;
 
-            if (blackTeam.contains(victim.getUniqueId())) {
-                respawnLoc = new Location(world, BLACK_X, BLACK_Y, BLACK_Z, 0f, 0f);
-                teamBlock = Material.BLACK_WOOL;
-            } else {
-                respawnLoc = new Location(world, GOLD_X, GOLD_Y, GOLD_Z, 180f, 0f);
-                teamBlock = Material.YELLOW_WOOL;
-            }
-
-            victim.teleport(respawnLoc);
+            InventoryManager.clearInventory(victim);
             InventoryManager.resetHealthAndHunger(victim);
             InventoryManager.giveCombatKit(victim, teamBlock);
             victim.sendMessage("§aYou have respawned!");
