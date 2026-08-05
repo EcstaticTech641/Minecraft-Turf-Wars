@@ -1,7 +1,15 @@
+# ==============================================================================
+# Paper Plugin Descriptor for Turf Wars Companion Plugin (rga-turfwars)
+# Canonical CPMK (Companion Plugin Micro-Kernel) Integration Specification
+# ==============================================================================
 name: TurfWarsCompanion
 version: 1.0.0-SNAPSHOT
 main: com.ronlab.turfwars.TurfWarsCompanion
 api-version: '26.2'
+description: Turf Wars Companion Plugin for Ronlab Game Assistant (RGA) CPMK Framework
+author: Ronlab Team
+
+# CPMK Event Bus & Dependency Bindings
 dependencies:
   server:
     RonlabGameAssistant:

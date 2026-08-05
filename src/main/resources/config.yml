@@ -1,0 +1,49 @@
+# ==============================================================================
+# Turf Wars Companion Plugin Configuration (rga-turfwars)
+# Companion Plugin Micro-Kernel (CPMK) Integration Schema
+# Target Platform: Java 25 | PaperMC 26.2 | RGA Core 1.13.0-SNAPSHOT
+# ==============================================================================
+#
+# ------------------------------------------------------------------------------
+# SOLO QA DEVELOPER MODE (initialPlayerCount == 1)
+# ------------------------------------------------------------------------------
+# When a minigame session is initiated with exactly ONE player (initialPlayerCount == 1),
+# Turf Wars automatically engages Solo QA Developer Mode.
+#
+# QA Mode Behaviors:
+# 1. Automatic 0-opponent win conditions are frozen / suppressed.
+# 2. The session remains active indefinitely to allow a single QA developer or admin
+#    to test territory boundary adjustments, wool placement, combat kits, map resets,
+#    and programmatic force-win triggers without being instantly kicked to lobby.
+# 3. Admins can execute `/turfwars forcewin` or `/tw forcewin` to manually conclude
+#    the session and verify post-match cleanup routines.
+# ------------------------------------------------------------------------------
+
+game:
+  # Title displayed on the PaperMC sidebar scoreboard
+  title: "&b&lTURF WARS"
+
+  # Match duration limit in seconds (Default: 600 seconds = 10 minutes)
+  match-duration-seconds: 600
+
+  # Interval in ticks for replenishing player building wool (Default: 100 ticks = 5 seconds)
+  replenish-interval-ticks: 100
+
+  # Quantity of wool blocks given per replenish cycle (Default: 2 wool blocks)
+  replenish-wool-amount: 2
+
+  # Quantity of arrows replenished if player has fewer than 1 (Default: 1 arrow)
+  replenish-arrow-amount: 1
+
+  # Interval in ticks for updating the player sidebar scoreboard (Default: 20 ticks = 1 second)
+  scoreboard-update-interval-ticks: 20
+
+  # Spawn protection duration after teleportation in seconds (Default: 3 seconds)
+  spawn-protection-seconds: 3
+
+qa-mode:
+  # Enable developer logging for single-player QA mode events
+  log-solo-qa-events: true
+
+  # Default force-win reason string used when `/turfwars forcewin` is executed
+  default-force-win-reason: "ADMIN FORCE WIN (QA Override)"

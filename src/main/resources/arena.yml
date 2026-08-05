@@ -1,0 +1,66 @@
+# ==============================================================================
+# Turf Wars Spatial & Arena Configuration Schema (rga-turfwars)
+# Companion Plugin Micro-Kernel (CPMK) Integration Specification
+# Target Platform: Java 25 | PaperMC 26.2 | RGA Core 1.13.0-SNAPSHOT
+# ==============================================================================
+#
+# ------------------------------------------------------------------------------
+# SOLO QA DEVELOPER MODE (initialPlayerCount == 1)
+# ------------------------------------------------------------------------------
+# In single-player QA testing (`initialPlayerCount == 1`), automatic zero-opponent
+# win conditions freeze. This allows testing of spatial boundaries (X: [-43, -1],
+# Z: [7, 70]), floor Y (-61), fall thresholds (Y < -65), team spawns, and turf line
+# advancement without triggering match termination.
+# ------------------------------------------------------------------------------
+
+arena:
+  name: "minigame_turfwars"
+  world-template: "minigame_turfwars"
+
+  # Spatial Floor and Boundary Limits
+  spatial-bounds:
+    # Y-coordinate of the concrete floor layer
+    floor-y: -61
+
+    # Y-coordinate fall threshold below which players are treated as falling into the void
+    fall-threshold-y: -65
+
+    # X-axis min and max bounds for the arena play area
+    min-x: -43
+    max-x: -1
+
+    # Z-axis min and max bounds for the territory play area
+    min-z: 7
+    max-z: 70
+
+    # Initial starting position of the territory division line along the Z-axis
+    initial-divide-line-z: 38.5
+
+  # Team Spawn Vectors & Pedestals
+  team-spawns:
+    black-team:
+      x: -21.0
+      y: -59.0
+      z: 0.0
+      yaw: 0.0
+      pitch: 0.0
+      floor-material: "BLACK_CONCRETE"
+      build-material: "BLACK_WOOL"
+
+    gold-team:
+      x: -21.0
+      y: -59.0
+      z: 77.0
+      yaw: 180.0
+      pitch: 0.0
+      floor-material: "YELLOW_CONCRETE"
+      build-material: "YELLOW_WOOL"
+
+  # Dynamic Territory Line Advancement Steps (Z-axis offset per kill)
+  turf-advancement-steps:
+    # Step size when session has more than 8 active players
+    large-game-step: 1.0
+    # Step size when session has 6 to 8 active players
+    medium-game-step: 2.0
+    # Step size when session has 5 or fewer active players
+    small-game-step: 3.0
